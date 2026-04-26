@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DATABASE_URL=sqlite:///./data/shiba_vpn.db
+    volumes:
+      - ./data:/app/data
+      - ./frontend:/app/frontend
+    restart: unless-stopped
+
+  # Для продакшена добавьте реальный VPN-сервер
+  # wireguard:
+  #   image: linuxserver/wireguard
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_MODULE
+  #   volumes:
+  #     - ./wireguard:/config
+  #   ports:
+  #     - "51820:51820/udp"
+  #   sysctls:
+  #     - net.ipv4.conf.all.src_valid_mark=1
