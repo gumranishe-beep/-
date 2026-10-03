@@ -21,6 +21,16 @@ from datetime import datetime, timezone
 
 import requests
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "ml"))
+try:
+    from calibrate import get_calibrated_prob, is_calibration_active
+except ImportError:
+    def get_calibrated_prob(p):
+        return p
+
+    def is_calibration_active():
+        return False
+
 BASE = "https://api.the-odds-api.com/v4"
 REFERENCE_BOOK = "pinnacle"
 
@@ -134,6 +144,7 @@ def scan_event(event: dict, sport_key: str, market_key: str, min_ev: float, max_
             p = fair.get(name)
             if p is None:
                 continue
+            p = get_calibrated_prob(p)  # no-op пока калибровочная модель не принята (см. ml/calibrate.py)
             ev = p * price - 1.0
             if ev >= min_ev and price <= max_odds:
                 opportunities.append(
@@ -278,6 +289,7 @@ def main():
     print("=" * 110)
     print(f"Сырых сигналов (1 букмекер): {len(all_opportunities)} - шум, не показан.")
     print(f"Подтверждено {args.min_books}+ букмекерами: {len(confirmed)}, показан топ-{len(shortlist)} по EV.")
+    print(f"Калибровочная модель: {'АКТИВНА (вероятности скорректированы)' if is_calibration_active() else 'не активна (недостаточно закрытых сигналов, используется сырая devig-вероятность)'}")
     print(f"ВАЖНО: это только количественный фильтр (расхождение кэфов). Ни одна строка здесь НЕ готовый "
           f"сигнал для ставки - по каждой нужна качественная проверка (форма/травмы/новости) прежде чем "
           f"показывать как рекомендацию пользователю.")
