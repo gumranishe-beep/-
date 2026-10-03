@@ -1,2 +1,3 @@
 id,date,sport_key,event,home_team,away_team,market,selection,odds,prob,closing_odds,status,result
 1,2026-10-02,,Тиен Л. vs Гуркач Х. (ATP500 Пекин),,,"RETRO: П2 Гуркач, live 3-й сет 1:1",,2.45,0.43,,settled,1
+2,2026-10-04,tennis_atp_china_open,Alexander Zverev vs Novak Djokovic,Alexander Zverev,Novak Djokovic,h2h,Novak Djokovic,3.55,0.2961373390557939,,pending,
