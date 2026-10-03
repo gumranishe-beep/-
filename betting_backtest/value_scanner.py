@@ -97,7 +97,7 @@ def staleness_seconds(a: str, b: str) -> float:
     return abs((ta - tb).total_seconds())
 
 
-def scan_event(event: dict, market_key: str, min_ev: float, max_staleness_sec: float, max_odds: float) -> list[dict]:
+def scan_event(event: dict, sport_key: str, market_key: str, min_ev: float, max_staleness_sec: float, max_odds: float) -> list[dict]:
     opportunities = []
     books = {b["key"]: b for b in event.get("bookmakers", [])}
     ref = books.get(REFERENCE_BOOK)
@@ -138,6 +138,9 @@ def scan_event(event: dict, market_key: str, min_ev: float, max_staleness_sec: f
             if ev >= min_ev and price <= max_odds:
                 opportunities.append(
                     {
+                        "sport_key": sport_key,
+                        "home_team": event["home_team"],
+                        "away_team": event["away_team"],
                         "event": f"{event['home_team']} vs {event['away_team']}",
                         "commence_time": event["commence_time"],
                         "market": market_key,
@@ -166,6 +169,8 @@ def main():
     ap.add_argument("--min-books", type=int, default=2, help="Минимум независимых букмекеров, подтверждающих эдж (защита от битых/устаревших котировок)")
     ap.add_argument("--include-niche", action="store_true", help="Не фильтровать по доверию к лиге - сканировать вообще всё (раздел 3.2: зона риска)")
     ap.add_argument("--yes", action="store_true", help="Не спрашивать подтверждение при --all")
+    ap.add_argument("--auto-log", action="store_true", help="Автоматически добавить все подтверждённые кандидаты в signal_log.csv как pending (для статистики - это НЕ значит 'ставить', качественная проверка отдельно)")
+    ap.add_argument("--top", type=int, default=10, help="Сколько топ-кандидатов по EV выводить для дальнейшей качественной проверки")
     args = ap.parse_args()
 
     api_key = load_api_key()
@@ -200,7 +205,7 @@ def main():
 
         found_here = []
         for event in events:
-            found_here.extend(scan_event(event, args.market, args.min_ev, args.max_staleness, args.max_odds))
+            found_here.extend(scan_event(event, sport_key, args.market, args.min_ev, args.max_staleness, args.max_odds))
         all_opportunities.extend(found_here)
 
         remaining = headers.get("x-requests-remaining", "?")
@@ -230,28 +235,52 @@ def main():
             {
                 "event": event,
                 "selection": selection,
+                "sport_key": items[0]["sport_key"],
+                "home_team": items[0]["home_team"],
+                "away_team": items[0]["away_team"],
+                "market": items[0]["market"],
                 "commence_time": items[0]["commence_time"],
                 "n_books": len(items),
                 "books": ", ".join(sorted(x["bookmaker"] for x in items)),
                 "median_odds": median_price,
                 "ev_median": fair_p * median_price - 1.0,
+                "fair_prob": fair_p,
             }
         )
 
     confirmed.sort(key=lambda o: o["ev_median"], reverse=True)
 
+    if args.auto_log:
+        from signal_log import add_pending
+        for o in confirmed:
+            add_pending(
+                date=o["commence_time"][:10],
+                event=o["event"],
+                market=o["market"],
+                odds=o["median_odds"],
+                prob=o["fair_prob"],
+                sport_key=o["sport_key"],
+                home_team=o["home_team"],
+                away_team=o["away_team"],
+                selection=o["selection"],
+            )
+        print(f"Залогировано {len(confirmed)} кандидатов в signal_log.csv как pending "
+              f"(это для статистики/бэктеста, НЕ значит 'ставить' - качественная проверка отдельно).",
+              file=sys.stderr)
+
+    shortlist = confirmed[: args.top]
     print("=" * 110)
     print(f"{'EV(медиана)':>12} | {'Кэф':>6} | {'#БК':>3} | {'Исход':<20} | {'Событие':<40} | Начало")
     print("=" * 110)
-    for o in confirmed:
+    for o in shortlist:
         print(f"{o['ev_median']*100:>11.1f}% | {o['median_odds']:>6.2f} | {o['n_books']:>3} | "
               f"{o['selection']:<20} | {o['event']:<40} | {o['commence_time']}")
     print("=" * 110)
-    print(f"Сырых сигналов (1 букмекер): {len(all_opportunities)} - это шум, не показан целиком.")
-    print(f"Подтверждено {args.min_books}+ букмекерами: {len(confirmed)} - вот с этим стоит работать дальше.")
-    print(f"Референсная линия: {REFERENCE_BOOK} (devigged), EV считался по медианной цене среди "
-          f"подтверждающих букмекеров. Это количественный фильтр, не финальное решение — "
-          f"перед ставкой проверяйте форму/травмы/контекст по методологии.")
+    print(f"Сырых сигналов (1 букмекер): {len(all_opportunities)} - шум, не показан.")
+    print(f"Подтверждено {args.min_books}+ букмекерами: {len(confirmed)}, показан топ-{len(shortlist)} по EV.")
+    print(f"ВАЖНО: это только количественный фильтр (расхождение кэфов). Ни одна строка здесь НЕ готовый "
+          f"сигнал для ставки - по каждой нужна качественная проверка (форма/травмы/новости) прежде чем "
+          f"показывать как рекомендацию пользователю.")
 
 
 if __name__ == "__main__":

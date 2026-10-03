@@ -12,33 +12,63 @@ import argparse
 import csv
 import os
 
-FIELDS = ["id", "date", "event", "market", "odds", "prob", "closing_odds", "status", "result"]
+FIELDS = ["id", "date", "sport_key", "event", "home_team", "away_team", "market",
+          "selection", "odds", "prob", "closing_odds", "status", "result"]
 LOG_PATH = os.path.join(os.path.dirname(__file__), "signal_log.csv")
 
 
-def _load_rows(path: str) -> list[dict]:
+def _load_rows(path: str = LOG_PATH) -> list[dict]:
     if not os.path.exists(path):
         return []
     with open(path, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        for field in FIELDS:
+            r.setdefault(field, "")
+    return rows
 
 
-def _save_rows(path: str, rows: list[dict]):
+def _save_rows(rows: list[dict], path: str = LOG_PATH):
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
         writer.writerows(rows)
 
 
+def add_pending(date, event, market, odds, prob, sport_key="", home_team="",
+                 away_team="", selection="") -> dict:
+    """Программное добавление pending-сигнала (используется value_scanner.py).
+    Дедуп: если точно такое же событие+исход+рынок уже в журнале - не дублируем."""
+    rows = _load_rows()
+    for r in rows:
+        if (r["event"] == event and r["selection"] == selection and r["market"] == market
+                and r["date"] == date):
+            return r  # уже залогировано ранее
+    next_id = (max((int(r["id"]) for r in rows), default=0)) + 1
+    new_row = {
+        "id": next_id, "date": date, "sport_key": sport_key, "event": event,
+        "home_team": home_team, "away_team": away_team, "market": market,
+        "selection": selection, "odds": odds, "prob": prob, "closing_odds": "",
+        "status": "pending", "result": "",
+    }
+    rows.append(new_row)
+    _save_rows(rows)
+    return new_row
+
+
 def cmd_add(args):
-    rows = _load_rows(LOG_PATH)
+    rows = _load_rows()
     next_id = (max((int(r["id"]) for r in rows), default=0)) + 1
     rows.append(
         {
             "id": next_id,
             "date": args.date,
+            "sport_key": "",
             "event": args.event,
+            "home_team": "",
+            "away_team": "",
             "market": args.market or "",
+            "selection": "",
             "odds": args.odds,
             "prob": args.prob,
             "closing_odds": "",
@@ -46,13 +76,13 @@ def cmd_add(args):
             "result": "",
         }
     )
-    _save_rows(LOG_PATH, rows)
+    _save_rows(rows)
     ev = args.prob * args.odds - 1.0
     print(f"Добавлен сигнал #{next_id}: {args.event} | odds={args.odds} prob={args.prob} EV={ev:+.3f} -> pending")
 
 
 def cmd_settle(args):
-    rows = _load_rows(LOG_PATH)
+    rows = _load_rows()
     target = None
     for r in rows:
         if int(r["id"]) == args.id:
@@ -70,12 +100,12 @@ def cmd_settle(args):
     if args.closing_odds is not None:
         target["closing_odds"] = str(args.closing_odds)
 
-    _save_rows(LOG_PATH, rows)
+    _save_rows(rows)
     print(f"Сигнал #{args.id} закрыт: {args.outcome}")
 
 
 def cmd_list(args):
-    rows = _load_rows(LOG_PATH)
+    rows = _load_rows()
     if not rows:
         print("Журнал пуст.")
         return
@@ -87,7 +117,7 @@ def cmd_list(args):
 
 
 def cmd_export(args):
-    rows = _load_rows(LOG_PATH)
+    rows = _load_rows()
     settled = [r for r in rows if r["status"] == "settled"]
     if not settled:
         print("Нет закрытых (settled) сигналов для экспорта.")
