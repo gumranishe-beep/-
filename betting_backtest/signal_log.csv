@@ -1,6 +1,6 @@
 id,date,sport_key,event,home_team,away_team,market,selection,odds,prob,closing_odds,status,result
 1,2026-10-02,,Тиен Л. vs Гуркач Х. (ATP500 Пекин),,,"RETRO: П2 Гуркач, live 3-й сет 1:1",,2.45,0.43,,settled,1
-2,2026-10-04,tennis_atp_china_open,Alexander Zverev vs Novak Djokovic,Alexander Zverev,Novak Djokovic,h2h,Novak Djokovic,3.55,0.2961373390557939,,pending,
+2,2026-10-04,tennis_atp_china_open,Alexander Zverev vs Novak Djokovic,Alexander Zverev,Novak Djokovic,h2h,Novak Djokovic,3.55,0.2961373390557939,,settled,1
 4,2026-10-15,soccer_uefa_europa_conference_league,Sint Truiden vs FC Iberia 1999,Sint Truiden,FC Iberia 1999,h2h,FC Iberia 1999,8.0,0.1444614804171048,,pending,
 6,2026-10-15,soccer_uefa_europa_conference_league,Atalanta BC vs Pafos FC,Atalanta BC,Pafos FC,h2h,Pafos FC,6.79,0.16509098609871575,,pending,
 7,2026-10-11,soccer_france_ligue_one,Rennes vs Auxerre,Rennes,Auxerre,h2h,Auxerre,7.5,0.14877194557029413,,pending,
