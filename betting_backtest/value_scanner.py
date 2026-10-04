@@ -109,6 +109,15 @@ def staleness_seconds(a: str, b: str) -> float:
 
 def scan_event(event: dict, sport_key: str, market_key: str, min_ev: float, max_staleness_sec: float, max_odds: float) -> list[dict]:
     opportunities = []
+    # Уже начавшиеся матчи исключаем целиком: это предматчевый анализ, а не
+    # live-трейдинг. В момент перехода pre-match -> live часть букмекеров ещё
+    # не обновила линию под текущий счёт, часть уже обновила - расхождение
+    # между ними ложное (не неэффективность рынка, а рассинхрон по времени),
+    # и так можно словить "edge" в сотни процентов на уже решённом исходе.
+    commence = datetime.fromisoformat(event["commence_time"].replace("Z", "+00:00"))
+    if commence <= datetime.now(timezone.utc):
+        return opportunities
+
     books = {b["key"]: b for b in event.get("bookmakers", [])}
     ref = books.get(REFERENCE_BOOK)
     if not ref:
