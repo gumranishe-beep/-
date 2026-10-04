@@ -56,11 +56,31 @@ HIGH_TRUST_SOCCER = {
     "soccer_conmebol_copa_libertadores", "soccer_conmebol_copa_sudamericana",
 }
 
+# Остальные виды спорта - тот же принцип: только признанные топ-лиги/сборные,
+# не фарм-лиги, не студенческий спорт, не единичные поединки с субъективным
+# судейством (бокс/MMA - сознательно не включены, структурно не ложатся на
+# кросс-букмекерское сравнение так же надёжно, как лиговые матчи).
+HIGH_TRUST_OTHER = {
+    "basketball_nba", "basketball_euroleague", "basketball_wnba",
+    "icehockey_nhl", "icehockey_liiga", "icehockey_sweden_hockey_league",
+    "handball_germany_bundesliga",
+    "baseball_mlb", "baseball_npb", "baseball_kbo",
+    "americanfootball_nfl",
+    "cricket_international_t20", "cricket_odi", "cricket_test_match",
+}
+
+# Волейбол, настольный теннис, киберспорт - физически не покрываются этим API,
+# данных для них нет вообще. Отдельно: настольный теннис и киберспорт также
+# исключены на уровне самой методологии (раздел 3.2 - приватные коммерческие
+# лиги типа Setka Cup/Liga Pro как зона риска договорняков; раздел 5 -
+# киберфутбол прямо в списке неподдерживаемых стратегий), так что даже
+# появление источника данных не означает автоматического включения.
+
 
 def is_high_trust(sport_key: str) -> bool:
     if sport_key.startswith("tennis_atp") or sport_key.startswith("tennis_wta"):
         return True
-    return sport_key in HIGH_TRUST_SOCCER
+    return sport_key in HIGH_TRUST_SOCCER or sport_key in HIGH_TRUST_OTHER
 
 
 def load_api_key() -> str:
@@ -142,6 +162,15 @@ def scan_event(event: dict, sport_key: str, market_key: str, min_ev: float, max_
             continue
         market = next((m for m in book["markets"] if m["key"] == market_key), None)
         if not market:
+            continue
+
+        # Один и тот же market_key ("h2h") у разных букмекеров иногда означает
+        # РАЗНЫЕ рынки - например в хоккее часть контор даёт 2-исходный h2h
+        # (с учётом овертайма), часть - 3-исходный (ничья по основному времени).
+        # Имена исходов совпадают ("Team A"), но вероятности структурно не
+        # сравнимы. Сравниваем только если набор исходов идентичен целиком.
+        other_names = {o["name"] for o in market["outcomes"]}
+        if other_names != set(ref_prices.keys()):
             continue
 
         if staleness_seconds(ref_market["last_update"], market["last_update"]) > max_staleness_sec:
