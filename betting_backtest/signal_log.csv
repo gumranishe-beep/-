@@ -31,7 +31,12 @@ id,date,sport_key,event,home_team,away_team,market,selection,odds,prob,closing_o
 32,2026-10-09,soccer_france_ligue_one,RC Lens vs Lyon,RC Lens,Lyon,h2h,Lyon,2.9,0.35548648577716624,,pending,
 33,2026-10-11,soccer_switzerland_superleague,Grasshopper Zürich vs BSC Young Boys,Grasshopper Zürich,BSC Young Boys,h2h,Grasshopper Zürich,5.5,0.20340156934967218,,pending,
 34,2026-10-09,soccer_japan_j_league,Kashima Antlers vs Gamba Osaka,Kashima Antlers,Gamba Osaka,h2h,Gamba Osaka,4.3,0.2518180304207839,,pending,
-35,2026-10-04,americanfootball_nfl,Minnesota Vikings vs Miami Dolphins,Minnesota Vikings,Miami Dolphins,h2h,Miami Dolphins,5.8,0.18335901386748843,,pending,
+35,2026-10-04,americanfootball_nfl,Minnesota Vikings vs Miami Dolphins,Minnesota Vikings,Miami Dolphins,h2h,Miami Dolphins,5.8,0.18335901386748843,,settled,0
 36,2026-10-10,soccer_england_league1,Stockport County FC vs Barnsley,Stockport County FC,Barnsley,h2h,Barnsley,6.8,0.1560750678380994,,pending,
 37,2026-10-09,soccer_efl_champ,West Ham United vs Queens Park Rangers,West Ham United,Queens Park Rangers,h2h,Queens Park Rangers,6.0,0.1757758996783783,,pending,
-38,2026-10-04,americanfootball_nfl,Baltimore Ravens vs Tennessee Titans,Baltimore Ravens,Tennessee Titans,h2h,Tennessee Titans,7.0,0.14766839378238342,,pending,
+38,2026-10-04,americanfootball_nfl,Baltimore Ravens vs Tennessee Titans,Baltimore Ravens,Tennessee Titans,h2h,Tennessee Titans,7.0,0.14766839378238342,,settled,0
+39,2026-10-06,cricket_international_t20,India vs West Indies,India,West Indies,h2h,West Indies,4.55,0.2358490566037736,,pending,
+40,2026-10-10,soccer_england_league1,Doncaster Rovers vs Burton Albion,Doncaster Rovers,Burton Albion,h2h,Burton Albion,4.9,0.21622874899880157,,pending,
+41,2026-10-15,soccer_uefa_europa_league,Jagiellonia Białystok vs FC Ararat-Armenia,Jagiellonia Białystok,FC Ararat-Armenia,h2h,FC Ararat-Armenia,7.9,0.1329062943500441,,pending,
+42,2026-10-10,soccer_spain_la_liga,Real Madrid vs Villarreal,Real Madrid,Villarreal,h2h,Villarreal,8.0,0.1304548012482734,,pending,
+43,2026-10-10,soccer_epl,Manchester United vs Tottenham Hotspur,Manchester United,Tottenham Hotspur,h2h,Tottenham Hotspur,4.7,0.22176485721636227,,pending,
