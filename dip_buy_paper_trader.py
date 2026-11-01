@@ -68,6 +68,9 @@ MIN_TIME_LEFT_SEC = 30        # не входить, если до резолв�
 POLL_INTERVAL_SEC = 5         # как часто опрашивать активные окна
 MIN_FILL_FRACTION = 0.3       # если стакан даёт меньше этой доли желаемого
                                # размера -- пропускаем сделку (слишком тонко)
+MAX_SLIPPAGE_PCT = 0.05        # не покупаем выше best_ask*(1+это) -- размер
+                               # позиции урезается под глубину стакана, а не
+                               # либо всё, либо ничего
 
 BASE_SIZE_USD = 22.0
 DIP_SCALE_USD = 100.0         # size = BASE + SCALE * dip_depth
@@ -148,6 +151,30 @@ def fetch_book_asks(token_id):
     except Exception:
         return None
     return asks
+
+
+def max_size_within_slippage(asks, max_slippage_pct):
+    """Универсальная формула лимита размера: сколько можно купить, не уходя
+    выше best_ask * (1 + max_slippage_pct). Не зависит от желаемого размера
+    позиции -- чисто свойство текущей глубины стакана."""
+    if not asks:
+        return 0.0
+    try:
+        best = float(asks[0]["price"])
+    except Exception:
+        return 0.0
+    cap_price = best * (1 + max_slippage_pct)
+    usd = 0.0
+    for lvl in asks:
+        try:
+            p = float(lvl["price"])
+            s = float(lvl["size"])
+        except Exception:
+            continue
+        if p > cap_price:
+            break
+        usd += p * s
+    return usd
 
 
 def simulate_fill(asks, target_usd):
@@ -298,6 +325,21 @@ def main():
                         target_usd = max(MIN_SIZE_USD, min(MAX_SIZE_USD, target_usd))
                         up_price = spot_price  # для лога ниже
 
+                        # урезаем желаемый размер под глубину стакана в
+                        # пределах допустимого slippage -- вместо "всё или
+                        # ничего" берём меньшую позицию, если книга тонкая
+                        cap_usd = max_size_within_slippage(asks, MAX_SLIPPAGE_PCT)
+                        capped = cap_usd < target_usd
+                        target_usd = min(target_usd, cap_usd)
+
+                        if target_usd < MIN_SIZE_USD:
+                            log(f"ПРОПУСК {key}: даже с учётом лимита "
+                                f"slippage книга слишком тонкая (cap=${cap_usd:.1f})")
+                            state["stats"]["n_skipped_thin"] += 1
+                            track["resolved"] = True
+                            save_state(state)
+                            continue
+
                         shares, usd_cost, avg_price, fully_filled = simulate_fill(asks, target_usd)
 
                         if shares <= 0 or avg_price is None or usd_cost < target_usd * MIN_FILL_FRACTION:
@@ -315,14 +357,15 @@ def main():
                             "dip_depth": dip_depth, "target_usd": target_usd,
                             "avg_fill_price": avg_price, "shares": shares,
                             "usd_cost": usd_cost, "fee_usd": fee_usd,
-                            "fully_filled": fully_filled,
+                            "fully_filled": fully_filled, "size_capped": capped,
                         }
                         track["entry"] = entry
                         state["stats"]["n_trades"] += 1
                         save_state(state)
                         slip = (avg_price - up_price) / up_price * 100 if up_price else 0
+                        cap_note = " [урезан под глубину]" if capped else ""
                         log(f"ВХОД {key}: signal_price={up_price:.3f} avg_fill={avg_price:.3f} "
-                            f"(slip={slip:+.1f}%) dip={dip_depth:.1%} target=${target_usd:.1f} "
+                            f"(slip={slip:+.1f}%) dip={dip_depth:.1%} target=${target_usd:.1f}{cap_note} "
                             f"filled=${usd_cost:.1f} shares={shares:.1f} full={fully_filled}")
 
                     # резолв
