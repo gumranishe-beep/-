@@ -235,6 +235,68 @@ def record_trade(trade):
         f.write(json.dumps(trade) + "\n")
 
 
+PRODUCT_BY_NAME = {p["name"]: p for p in PRODUCTS}
+
+
+def sweep_resolutions(state, now):
+    """Отдельный проход по ВСЕМ незавершённым трекам (не только по текущему
+    окну) -- иначе как только время переходит в следующее окно, старый трек
+    с открытой позицией больше никогда не опрашивается и резолв не замечается
+    (это был баг: позиции висели часами без единого РЕЗОЛВ)."""
+    for key, track in list(state["tracks"].items()):
+        if track["resolved"]:
+            continue
+
+        product = PRODUCT_BY_NAME[track["product"]]
+        dur = product["dur"]
+        w = track["w"]
+        elapsed = now - w
+
+        if not track["entered"]:
+            if elapsed > dur + 300:
+                track["resolved"] = True  # пропущенное окно, вход не случился
+            continue
+
+        if not track["entry"]:
+            continue
+
+        ev = fetch_event(track["coin"], product, w)
+        if not ev or not ev.get("markets"):
+            continue
+        m = ev["markets"][0]
+        if not m.get("closed"):
+            continue
+
+        try:
+            op = json.loads(m.get("outcomePrices", "[]"))
+            resolved_up = float(op[UP_IDX])
+        except Exception:
+            resolved_up = None
+
+        if resolved_up not in (0.0, 1.0):
+            continue  # закрылся, но резолв ещё не проставлен -- подождём
+
+        entry = track["entry"]
+        payout = entry["shares"] * resolved_up
+        net_cost = entry["usd_cost"] + entry["fee_usd"]
+        pnl = payout - net_cost
+        track["resolved"] = True
+        state["stats"]["n_resolved"] += 1
+        state["stats"]["total_pnl"] += pnl
+        if pnl > 0:
+            state["stats"]["n_won"] += 1
+        trade = {**entry, "coin": track["coin"], "product": track["product"], "w": w,
+                  "resolved_up": resolved_up, "payout": payout,
+                  "net_cost": net_cost, "pnl": pnl}
+        record_trade(trade)
+        save_state(state)
+        won = resolved_up == 1.0
+        wr = state["stats"]["n_won"] / state["stats"]["n_resolved"] * 100
+        log(f"РЕЗОЛВ {key}: won={won} pnl={pnl:+.2f} "
+            f"(резолвнуто={state['stats']['n_resolved']}, "
+            f"total_pnl={state['stats']['total_pnl']:+.2f}, WR={wr:.1f}%)")
+
+
 def main():
     state = load_state()
     log(f"Старт paper-бота (v2, реальный стакан для исполнения). "
@@ -368,37 +430,9 @@ def main():
                             f"(slip={slip:+.1f}%) dip={dip_depth:.1%} target=${target_usd:.1f}{cap_note} "
                             f"filled=${usd_cost:.1f} shares={shares:.1f} full={fully_filled}")
 
-                    # резолв
-                    if m.get("closed") and not track["resolved"] and track["entered"] and track["entry"]:
-                        try:
-                            op = json.loads(m.get("outcomePrices", "[]"))
-                            resolved_up = float(op[UP_IDX])
-                        except Exception:
-                            resolved_up = None
-                        if resolved_up in (0.0, 1.0):
-                            entry = track["entry"]
-                            payout = entry["shares"] * resolved_up
-                            net_cost = entry["usd_cost"] + entry["fee_usd"]
-                            pnl = payout - net_cost
-                            track["resolved"] = True
-                            state["stats"]["n_resolved"] += 1
-                            state["stats"]["total_pnl"] += pnl
-                            if pnl > 0:
-                                state["stats"]["n_won"] += 1
-                            trade = {**entry, "coin": coin, "product": product["name"], "w": w,
-                                      "resolved_up": resolved_up, "payout": payout,
-                                      "net_cost": net_cost, "pnl": pnl}
-                            record_trade(trade)
-                            save_state(state)
-                            won = resolved_up == 1.0
-                            wr = state["stats"]["n_won"] / state["stats"]["n_resolved"] * 100
-                            log(f"РЕЗОЛВ {key}: won={won} pnl={pnl:+.2f} "
-                                f"(резолвнуто={state['stats']['n_resolved']}, "
-                                f"total_pnl={state['stats']['total_pnl']:+.2f}, WR={wr:.1f}%)")
-                        # если closed, но резолва ещё нет -- подождём, не трогаем track
-
-                    elif not track["entered"] and elapsed > dur + 300:
-                        track["resolved"] = True  # пропущенное окно
+            # отдельный проход по ВСЕМ незавершённым трекам -- не только по
+            # текущему окну, иначе резолвы старых окон никогда не замечаются
+            sweep_resolutions(state, now)
 
             if int(now) % 3600 < POLL_INTERVAL_SEC:
                 cutoff = now - 2 * 86400
